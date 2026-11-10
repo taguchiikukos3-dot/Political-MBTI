@@ -4,16 +4,16 @@ import pandas as pd
 # ページ設定
 st.set_page_config(page_title="政治MBTI診断", page_icon="🗳️", layout="centered")
 
-# カスタムCSS（MBTI風の7つの丸UIを再現する魔法）
+# カスタムCSS（7つの丸UIの崩れを防止する修正版）
 st.markdown("""
 <style>
-    /* 質問テキストを中央揃えで読みやすく */
+    /* 質問テキスト */
     .question-text {
         text-align: center;
-        font-size: 1.3rem;
+        font-size: 1.25rem;
         font-weight: bold;
-        margin-top: 40px;
-        margin-bottom: 25px;
+        margin-top: 35px;
+        margin-bottom: 20px;
         color: #2c3e50;
         line-height: 1.5;
     }
@@ -22,37 +22,51 @@ st.markdown("""
     .labels-container {
         display: flex;
         justify-content: space-between;
-        padding: 0 10%;
+        max-width: 500px;
+        margin: 0 auto -10px auto;
+        padding: 0 10px;
         font-weight: bold;
-        margin-bottom: -15px;
     }
-    .agree-label { color: #33a474; font-size: 1.1rem; }
-    .disagree-label { color: #88619a; font-size: 1.1rem; }
+    .agree-label { color: #33a474; font-size: 1.05rem; }
+    .disagree-label { color: #88619a; font-size: 1.05rem; }
 
-    /* Streamlitの標準ラジオボタンテキストを非表示にする */
+    /* ラジオボタンのテキスト（opt1〜7）を非表示 */
     div[role="radiogroup"] label p {
         display: none !important;
     }
 
-    /* 7つの丸を均等に横並び配置 */
+    /* 7つの丸を1行に強制横並び配置 */
     div[role="radiogroup"] {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        width: 80%;
-        margin: 0 auto 40px auto;
-        padding: 20px 0;
-        border-bottom: 1px solid #f0f2f6;
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        max-width: 500px !important;
+        margin: 0 auto 30px auto !important;
+        padding: 15px 0 !important;
+        border-bottom: 1px solid #eaeaea;
     }
 
-    /* 丸のサイズを左右対称で変える（16Personalities風） */
-    div[role="radiogroup"] > label:nth-child(1) { transform: scale(2.0); }
-    div[role="radiogroup"] > label:nth-child(2) { transform: scale(1.5); }
-    div[role="radiogroup"] > label:nth-child(3) { transform: scale(1.1); }
-    div[role="radiogroup"] > label:nth-child(4) { transform: scale(0.9); }
-    div[role="radiogroup"] > label:nth-child(5) { transform: scale(1.1); }
-    div[role="radiogroup"] > label:nth-child(6) { transform: scale(1.5); }
-    div[role="radiogroup"] > label:nth-child(7) { transform: scale(2.0); }
+    /* 各ラジオボタンの要素幅を固定して折り返しを阻止 */
+    div[role="radiogroup"] > label {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 40px !important;
+        height: 40px !important;
+    }
+
+    /* 丸のサイズを16Personalities風に変更 */
+    div[role="radiogroup"] > label:nth-child(1) input { transform: scale(1.8); }
+    div[role="radiogroup"] > label:nth-child(2) input { transform: scale(1.4); }
+    div[role="radiogroup"] > label:nth-child(3) input { transform: scale(1.1); }
+    div[role="radiogroup"] > label:nth-child(4) input { transform: scale(0.9); }
+    div[role="radiogroup"] > label:nth-child(5) input { transform: scale(1.1); }
+    div[role="radiogroup"] > label:nth-child(6) input { transform: scale(1.4); }
+    div[role="radiogroup"] > label:nth-child(7) input { transform: scale(1.8); }
 
     /* 結果画面のテキストスタイル */
     .result-type {
@@ -69,7 +83,7 @@ st.markdown("""
 st.title("🗳️ 政治MBTI診断")
 st.write("以下の22の質問に対し、直感で選んでください。")
 
-# 内部計算用のスコアマッピング（画面の文字はCSSで消えます）
+# 内部計算用のスコアマッピング
 scale_mapping = {
     "opt1": 3,   # 強く同意
     "opt2": 2,   # 同意
@@ -81,7 +95,10 @@ scale_mapping = {
 }
 option_labels = list(scale_mapping.keys())
 
-# 設問データ
+# 設問データ（わかりやすい表現版）
+questions = [
+    # ① 経済軸：【B】大きな政府(平等) vs 【S】小さな政府(成長)
+    # 設問データ
 questions = [
     # ① 経済軸：【B】大きな政府(平等) vs 【S】小さな政府(成長)
     {"id": "q01", "axis": "BS", "dir": 1, "text": "経済の成長よりも、貧富の差をなくすことのほうが大切だ"},
@@ -113,12 +130,12 @@ questions = [
     {"id": "q21", "axis": "RC", "dir": 1, "text": "既存のルールやしがらみをぶっ壊すような、強いリーダーが必要だ"},
     {"id": "q22", "axis": "RC", "dir": 1, "text": "今の日本の仕組みや憲法は、時代に合わせて作り直す必要がある"}
 ]
+]
 
 # フォームの作成
 with st.form("mbti_form"):
     answers = {}
     for i, q in enumerate(questions):
-        # 質問文とラベル
         st.markdown(f'<div class="question-text">Q{i+1}. {q["text"]}</div>', unsafe_allow_html=True)
         st.markdown('''
             <div class="labels-container">
@@ -127,11 +144,10 @@ with st.form("mbti_form"):
             </div>
         ''', unsafe_allow_html=True)
         
-        # UI上はCSSで丸だけになるラジオボタン
         ans = st.radio(
             label=f"Q{i+1}", 
             options=option_labels, 
-            index=3, # デフォルトは中央(中立)
+            index=3, # デフォルトは中央
             key=q["id"],
             label_visibility="collapsed",
             horizontal=True
@@ -146,14 +162,12 @@ if submitted:
     scores = {"BS": 0, "LA": 0, "PT": 0, "RC": 0}
     max_scores = {"BS": 0, "LA": 0, "PT": 0, "RC": 0}
 
-    # 各軸のスコア計算
     for q in questions:
         axis = q["axis"]
         val = answers[q["id"]]
         scores[axis] += val * q["dir"]
         max_scores[axis] += 3 
 
-    # アルファベットの判定
     type_B = "B" if scores["BS"] >= 0 else "S"
     type_L = "L" if scores["LA"] >= 0 else "A"
     type_P = "P" if scores["PT"] >= 0 else "T"
