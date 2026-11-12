@@ -5,48 +5,41 @@ import streamlit as st
 # ページ設定
 st.set_page_config(page_title="政治MBTI診断", page_icon="🗳️", layout="centered")
 
-# カスタムCSS（16Personalities風リングUI ＆ PC/スマホ完全位置合わせ版）
+# カスタムCSS（PC・スマホで100%位置ズレしない、永久合体16Personalities風リングUI）
 st.markdown(
     """
 <style>
-    /* 質問テキスト */
+    /* 質問テキスト（大きく、中央寄せで読みやすく） */
     .question-text {
         text-align: center;
-        font-size: 1.25rem;
+        font-size: 1.3rem;
         font-weight: bold;
-        margin-top: 40px;
-        margin-bottom: 20px;
+        margin-top: 50px;
+        margin-bottom: 30px;
         color: #2c3e50;
-        line-height: 1.5;
+        line-height: 1.6;
     }
     
-    /* 質問ごとの表示領域を中央に揃える */
+    /* 各質問全体の表示エリアを中央で完全に固定 */
     div[data-testid="stRadio"] {
         max-width: 480px !important;
-        margin: 0 auto !important;
-    }
-
-    /* 「同意する」「反対する」の文字ラベル（一番左・右の丸の真上に配置） */
-    .labels-container {
-        display: flex !important;
-        justify-content: space-between !important;
-        max-width: 480px !important;
         width: 100% !important;
-        margin: 0 auto -5px auto !important;
-        padding: 0 4px !important;
+        margin: 0 auto !important;
         box-sizing: border-box !important;
-        font-weight: bold;
     }
-    .agree-label { color: #33a474; font-size: 1.05rem; }
-    .disagree-label { color: #88619a; font-size: 1.05rem; }
 
     /* ラジオボタンの文字テキスト（opt1〜7）を完全非表示 */
     div[role="radiogroup"] label p {
         display: none !important;
     }
 
-    /* 7つの丸を1行に横並び配置 */
+    /* 
+       【ここが重要】7つの丸のフレックスコンテナ。
+       ここに position: relative を指定し、上部にスペース（padding-top）を空けることで、
+       「同意する」「反対する」の文字を直上に絶対配置で完全一体化させます。
+    */
     div[role="radiogroup"] {
+        position: relative !important;
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
@@ -54,13 +47,43 @@ st.markdown(
         align-items: center !important;
         max-width: 480px !important;
         width: 100% !important;
-        margin: 0 auto 35px auto !important;
-        padding: 15px 0 !important;
+        margin: 0 auto 45px auto !important;
+        padding: 35px 6px 15px 6px !important; /* 上部に35px文字用スペースを確保、左右6pxマージン */
         border-bottom: 1px solid #eaeaea;
         box-sizing: border-box !important;
     }
 
-    /* ラベル要素の配置調整 */
+    /* 
+       永久合体ラベル（左端の「同意する」）
+       丸と同じコンテナ内の絶対配置なので、どれだけ画面が歪んでも左端の丸の真上から絶対にズレません。
+    */
+    div[role="radiogroup"]::before {
+        content: "同意する" !important;
+        position: absolute !important;
+        top: 0px !important;
+        left: 4px !important; /* 1つ目の丸の幅にジャストフィット */
+        color: #33a474 !important;
+        font-weight: bold !important;
+        font-size: 1.05rem !important;
+        pointer-events: none !important;
+    }
+
+    /* 
+       永久合体ラベル（右端の「反対する」）
+       こちらも、右端の丸の真上に完全に固定されます。
+    */
+    div[role="radiogroup"]::after {
+        content: "反対する" !important;
+        position: absolute !important;
+        top: 0px !important;
+        right: 4px !important; /* 7つ目の丸の幅にジャストフィット */
+        color: #88619a !important;
+        font-weight: bold !important;
+        font-size: 1.05rem !important;
+        pointer-events: none !important;
+    }
+
+    /* ラベル丸要素の配置調整 */
     div[role="radiogroup"] > label {
         display: flex !important;
         justify-content: center !important;
@@ -146,7 +169,7 @@ st.markdown(
 )
 
 st.title("🗳️ 政治MBTI診断")
-st.write("以下の質問に対し、直感で選んでください。")
+st.write("以下の22の質問に対し、直感で選んでください。")
 
 # 内部計算用のスコアマッピング
 scale_mapping = {
@@ -160,7 +183,7 @@ scale_mapping = {
 }
 option_labels = list(scale_mapping.keys())
 
-# 設問データ
+# 設問データ（すべての質問と向きはこれで確定！）
 questions = [
     # ① 経済軸：【B】大きな政府(平等) vs 【S】小さな政府(成長)
     {
@@ -254,7 +277,7 @@ questions = [
         "id": "q16",
         "axis": "PT",
         "dir": 1,
-        "text": "同性カップルも、男女のカップルと同じような家族になれる",
+        "text": "同性カップルも、男女のカップルと同じように立派に子育てができる",
     },
     {
         "id": "q17",
@@ -295,7 +318,7 @@ questions = [
     },
 ]
 
-# 初回読み込み時のみ質問をシャッフルしてセッションに保持
+# 初回読み込み時のみ質問をシャッフルしてセッションに保持（回答変更時の順序崩れ防止）
 if "shuffled_questions" not in st.session_state:
     shuffled = questions.copy()
     random.shuffle(shuffled)
@@ -311,15 +334,9 @@ with st.form("mbti_form"):
             f'<div class="question-text">{q["text"]}</div>',
             unsafe_allow_html=True,
         )
-        st.markdown(
-            """
-            <div class="labels-container">
-                <span class="agree-label">同意する</span>
-                <span class="disagree-label">反対する</span>
-            </div>
-        """,
-            unsafe_allow_html=True,
-        )
+        
+        # 以前の labels-container (st.markdown) を完全に削除！ 
+        # CSSの ::before と ::after で丸の直上に文字を永久固定しているため、不要になりました。
 
         ans = st.radio(
             label=q["id"],
