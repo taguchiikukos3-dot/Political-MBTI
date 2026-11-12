@@ -21,7 +21,7 @@ GREEN = "#33a474"
 PURPLE = "#88619a"
 GRAY = "#9ea0a5"
 
-# 自前HTML用の最小限のCSS。Streamlitのダーク/ライトどちらでも読めるよう色は継承。
+# 自前HTML用の最小限のCSS ＋ 7つの丸（ラジオボタン）UI化のCSSを追加
 st.markdown(
     f"""
 <style>
@@ -82,6 +82,72 @@ st.markdown(
         display: flex; justify-content: space-between;
         font-size: 0.8rem; opacity: 0.7; margin-top: 4px;
     }}
+
+    /* ▼▼▼ ここから16Personalities風の7つの丸UIを追加 ▼▼▼ */
+    div[data-testid="stRadio"] {{
+        max-width: 500px !important;
+        width: 100% !important;
+        margin: 0 auto !important;
+        box-sizing: border-box !important;
+    }}
+    div[role="radiogroup"] label p {{ display: none !important; }}
+    div[role="radiogroup"] {{
+        position: relative !important;
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        max-width: 500px !important;
+        width: 100% !important;
+        margin: 0 auto 35px auto !important;
+        padding: 35px 6px 15px 6px !important;
+        box-sizing: border-box !important;
+        border-bottom: none !important;
+    }}
+    div[role="radiogroup"]::before, div[role="radiogroup"]::after {{
+        position: absolute !important;
+        top: 0px !important;
+        font-weight: bold !important;
+        font-size: 1.05rem !important;
+        pointer-events: none !important;
+    }}
+    div[role="radiogroup"]::before {{ left: 4px !important; }}
+    div[role="radiogroup"]::after {{ right: 4px !important; }}
+
+    div[role="radiogroup"] > label {{
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+    }}
+    div[role="radiogroup"] > label input[type="radio"] {{
+        -webkit-appearance: none !important;
+        -moz-appearance: none !important;
+        appearance: none !important;
+        border-radius: 50% !important;
+        outline: none !important;
+        cursor: pointer !important;
+        transition: all 0.2s ease-in-out !important;
+        background-color: transparent !important;
+    }}
+    div[role="radiogroup"] > label:nth-child(1) input[type="radio"] {{ width: 46px !important; height: 46px !important; border: 3px solid {GREEN} !important; }}
+    div[role="radiogroup"] > label:nth-child(2) input[type="radio"] {{ width: 36px !important; height: 36px !important; border: 3px solid {GREEN} !important; }}
+    div[role="radiogroup"] > label:nth-child(3) input[type="radio"] {{ width: 28px !important; height: 28px !important; border: 2.5px solid {GREEN} !important; }}
+    div[role="radiogroup"] > label:nth-child(4) input[type="radio"] {{ width: 20px !important; height: 20px !important; border: 2px solid {GRAY} !important; }}
+    div[role="radiogroup"] > label:nth-child(5) input[type="radio"] {{ width: 28px !important; height: 28px !important; border: 2.5px solid {PURPLE} !important; }}
+    div[role="radiogroup"] > label:nth-child(6) input[type="radio"] {{ width: 36px !important; height: 36px !important; border: 3px solid {PURPLE} !important; }}
+    div[role="radiogroup"] > label:nth-child(7) input[type="radio"] {{ width: 46px !important; height: 46px !important; border: 3px solid {PURPLE} !important; }}
+
+    div[role="radiogroup"] > label:nth-child(1) input[type="radio"]:checked,
+    div[role="radiogroup"] > label:nth-child(2) input[type="radio"]:checked,
+    div[role="radiogroup"] > label:nth-child(3) input[type="radio"]:checked {{ background-color: {GREEN} !important; }}
+    div[role="radiogroup"] > label:nth-child(4) input[type="radio"]:checked {{ background-color: {GRAY} !important; }}
+    div[role="radiogroup"] > label:nth-child(5) input[type="radio"]:checked,
+    div[role="radiogroup"] > label:nth-child(6) input[type="radio"]:checked,
+    div[role="radiogroup"] > label:nth-child(7) input[type="radio"]:checked {{ background-color: {PURPLE} !important; }}
 </style>
 """,
     unsafe_allow_html=True,
@@ -208,22 +274,6 @@ NICKNAMES = {
     "SATR": "市場と強い国の変革派", "SATC": "秩序と自立の守り手",
 }
 
-AGREE_OPTIONS = [
-    ("🟢 賛成", 2),
-    ("🌿 どちらかといえば賛成", 1),
-    ("⚪ どちらともいえない", 0),
-    ("🪻 どちらかといえば反対", -1),
-    ("🟣 反対", -2),
-]
-AB_OPTIONS = [
-    ("🟢 Aに近い", 2),
-    ("🌿 ややA", 1),
-    ("⚪ どちらでもない", 0),
-    ("🪻 ややB", -1),
-    ("🟣 Bに近い", -2),
-]
-
-
 # ---------------------------------------------------------------------------
 # 状態管理
 # ---------------------------------------------------------------------------
@@ -231,7 +281,7 @@ def init_state():
     ss = st.session_state
     if "page" not in ss:
         ss.page = "intro"      # intro / quiz / result
-        ss.answers = {}        # id -> -2..2 / None(わからない)
+        ss.answers = {}        # id -> -3..3 / None(わからない)
         ss.queue = []
         ss.pos = 0
         ss.stage = "base"      # base / more / issues
@@ -289,7 +339,8 @@ def axis_score(axis):
         n += 1
     if n < 3:
         return None, n
-    return total / (2 * n), n
+    # ※7段階（最大3点）に変更したため、分母を (3 * n) に調整しています
+    return total / (3 * n), n
 
 
 def strength_label(ratio, left, right):
@@ -336,6 +387,7 @@ def render_quiz():
 
     st.progress(ss.pos / total, text=f"{ss.pos + 1} / {total}")
 
+    # 設問タイプごとに、丸の上の文字（擬似要素）をCSSで切り替える
     if q["kind"] == "ab":
         st.markdown(
             f"""
@@ -344,19 +396,67 @@ def render_quiz():
   <div class="ab-box ab-b"><span class="ab-tag">B</span>{q["b"]}</div>
 </div>
 <div class="q-text" style="font-size:1.05rem;margin-top:0;">どちらに近いですか？</div>
+<style>
+    div[role="radiogroup"]::before {{ content: "Aに近い" !important; color: {GREEN} !important; }}
+    div[role="radiogroup"]::after {{ content: "Bに近い" !important; color: {PURPLE} !important; }}
+</style>
 """,
             unsafe_allow_html=True,
         )
-        options = AB_OPTIONS
-    else:
-        st.markdown(f'<div class="q-text">{q["text"]}</div>', unsafe_allow_html=True)
-        options = AGREE_OPTIONS
-
-    for label, val in options:
-        st.button(
-            label, key=f'{q["id"]}_{val}', on_click=answer,
-            args=(q["id"], val), use_container_width=True,
+    elif q["kind"] == "issue":
+        st.markdown(
+            f'''
+<div class="q-text">{q["text"]}</div>
+<style>
+    div[role="radiogroup"]::before {{ content: "賛成" !important; color: {GREEN} !important; }}
+    div[role="radiogroup"]::after {{ content: "反対" !important; color: {PURPLE} !important; }}
+</style>
+            ''', 
+            unsafe_allow_html=True
         )
+    else:
+        st.markdown(
+            f'''
+<div class="q-text">{q["text"]}</div>
+<style>
+    div[role="radiogroup"]::before {{ content: "同意する" !important; color: {GREEN} !important; }}
+    div[role="radiogroup"]::after {{ content: "反対する" !important; color: {PURPLE} !important; }}
+</style>
+            ''', 
+            unsafe_allow_html=True
+        )
+
+    # 16Personalitiesに合わせ、7段階のオプションに拡張
+    radio_options = ["opt1", "opt2", "opt3", "opt4", "opt5", "opt6", "opt7"]
+    val_map = {"opt1": 3, "opt2": 2, "opt3": 1, "opt4": 0, "opt5": -1, "opt6": -2, "opt7": -3}
+
+    # ラジオボタンがクリックされたら自動で次の問題へ進む関数
+    def handle_radio():
+        selected_opt = st.session_state[f"radio_{q['id']}"]
+        if selected_opt is not None:
+            answer(q["id"], val_map[selected_opt])
+
+    # CSSで装飾される隠しラジオボタン
+    st.radio(
+        label="回答",
+        options=radio_options,
+        index=None,  # 選択されていない状態で表示し、クリックで発火させる
+        key=f"radio_{q['id']}",
+        label_visibility="collapsed",
+        horizontal=True,
+        on_change=handle_radio
+    )
+    
+    st.write("")
+    
+    # 戻るボタンで過去の質問を見ている時、値を変更せずに進める用のボタン
+    if q["id"] in ss.answers:
+        def go_next():
+            ss.pos += 1
+            if ss.pos >= len(ss.queue):
+                ss.page = "result"
+        st.button("そのまま次へ →", key=f'{q["id"]}_next', on_click=go_next, use_container_width=True)
+
     st.button(
         "わからない / 答えたくない", key=f'{q["id"]}_na', on_click=answer,
         args=(q["id"], None), use_container_width=True,
@@ -373,8 +473,8 @@ def axis_bar_html(axis_key, ratio, n):
 <div class="axis">
   <div class="axis-name">{info["name"]}</div>
   <div class="axis-head">
-    <span style="color:{GREEN};">{left[0]}　{left[1]}</span>
-    <span style="color:{PURPLE};">{right[1]}　{right[0]}</span>
+    <span style="color:{GREEN};">{left[0]} {left[1]}</span>
+    <span style="color:{PURPLE};">{right[1]} {right[0]}</span>
   </div>
   <div class="bar">
     <div style="width:{pct_left:.1f}%;background:{GREEN};"></div>
@@ -386,9 +486,10 @@ def axis_bar_html(axis_key, ratio, n):
 
 
 def issue_dots_html(val):
-    colors = {2: GREEN, 1: "#8fd3b4", 0: "#c9cacd", -1: "#c5aad2", -2: PURPLE}
+    # 7段階のスコア(-3〜3)に合わせてグラデーション化
+    colors = {3: GREEN, 2: "#68b991", 1: "#a5d5bd", 0: "#c9cacd", -1: "#bfa3ca", -2: "#a482b2", -3: PURPLE}
     dots = ""
-    for v in (2, 1, 0, -1, -2):
+    for v in (3, 2, 1, 0, -1, -2, -3):
         selected = v == val
         dots += (
             f'<span class="dot" style="background:{colors[v]};'
