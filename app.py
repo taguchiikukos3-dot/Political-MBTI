@@ -12,8 +12,11 @@
 import csv
 import io
 import random
+import tempfile
+from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 st.set_page_config(page_title="政治MBTI診断", page_icon="🗳️", layout="centered")
 
@@ -210,18 +213,112 @@ NICKNAMES = {
 
 AGREE_OPTIONS = [
     ("🟢 賛成", 2),
-    ("どちらかといえば賛成", 1),
-    ("どちらともいえない", 0),
-    ("どちらかといえば反対", -1),
+    ("🌿 どちらかといえば賛成", 1),
+    ("⚪ どちらともいえない", 0),
+    ("🪻 どちらかといえば反対", -1),
     ("🟣 反対", -2),
 ]
 AB_OPTIONS = [
     ("🟢 Aに近い", 2),
-    ("ややA", 1),
-    ("どちらでもない", 0),
-    ("ややB", -1),
+    ("🌿 ややA", 1),
+    ("⚪ どちらでもない", 0),
+    ("🪻 ややB", -1),
     ("🟣 Bに近い", -2),
 ]
+
+
+
+# ---------------------------------------------------------------------------
+# 横一列の丸ボタン (カスタムコンポーネント)
+#   Streamlitのボタンはスマホ幅で縦積みになるため、丸の列だけ自前のHTML/JSで描画する。
+#   ビルド不要: 起動時にindex.htmlを一時フォルダへ書き出して読み込む。
+# ---------------------------------------------------------------------------
+RING_HTML = """<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  html, body { margin: 0; padding: 0; background: transparent;
+    font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+  #root { max-width: 480px; margin: 0 auto; padding: 4px 6px 6px; box-sizing: border-box; }
+  .ends { display: flex; justify-content: space-between; font-weight: 800;
+    font-size: 15px; margin-bottom: 10px; }
+  .row { display: flex; justify-content: space-between; align-items: center;
+    padding-bottom: 12px; border-bottom: 1px solid rgba(128,128,128,.3); }
+  .cell { width: 50px; display: flex; justify-content: center; align-items: center; }
+  .opt { -webkit-appearance: none; appearance: none; background: transparent;
+    border-style: solid; border-radius: 50%; padding: 0; margin: 0; cursor: pointer;
+    transition: background .15s, transform .15s; }
+  .opt:hover { background: var(--tint); transform: scale(1.08); }
+  .opt:focus-visible { outline: 3px solid rgba(255,87,34,.7); outline-offset: 3px; }
+  .opt.on { background: var(--c); }
+</style></head>
+<body><div id="root"></div>
+<script>
+  var SIZES = [46, 34, 22, 34, 46];
+  var BORDERS = [3, 3, 2, 3, 3];
+  var VALUES = [2, 1, 0, -1, -2];
+  function send(type, data) {
+    window.parent.postMessage(Object.assign({isStreamlitMessage: true, type: type}, data), "*");
+  }
+  function tint(hex) {
+    var n = parseInt(hex.slice(1), 16);
+    return "rgba(" + (n >> 16) + "," + ((n >> 8) & 255) + "," + (n & 255) + ",.25)";
+  }
+  function render(args, theme) {
+    var root = document.getElementById("root");
+    var colors = [args.green, args.green, args.gray, args.purple, args.purple];
+    if (theme && theme.textColor) { document.body.style.color = theme.textColor; }
+    var html = '<div class="ends"><span style="color:' + args.green + '">' + args.left +
+      '</span><span style="color:' + args.purple + '">' + args.right + '</span></div>' +
+      '<div class="row">';
+    for (var i = 0; i < 5; i++) {
+      html += '<div class="cell"><button class="opt' + (args.selected === VALUES[i] ? ' on' : '') +
+        '" data-v="' + VALUES[i] + '" aria-label="' + args.labels[i] + '" title="' + args.labels[i] +
+        '" style="width:' + SIZES[i] + 'px;height:' + SIZES[i] + 'px;border-width:' + BORDERS[i] +
+        'px;border-color:' + colors[i] + ';--c:' + colors[i] + ';--tint:' + tint(colors[i]) +
+        '"></button></div>';
+    }
+    html += '</div>';
+    root.innerHTML = html;
+    var btns = root.querySelectorAll(".opt");
+    for (var j = 0; j < btns.length; j++) {
+      btns[j].addEventListener("click", function (e) {
+        var b = e.currentTarget;
+        var all = root.querySelectorAll(".opt");
+        for (var k = 0; k < all.length; k++) { all[k].classList.remove("on"); }
+        b.classList.add("on");
+        send("streamlit:setComponentValue", {value: parseInt(b.getAttribute("data-v"), 10), dataType: "json"});
+      });
+    }
+    send("streamlit:setFrameHeight", {height: document.documentElement.scrollHeight});
+  }
+  window.addEventListener("message", function (e) {
+    if (e.data && e.data.type === "streamlit:render") { render(e.data.args, e.data.theme); }
+  });
+  send("streamlit:componentReady", {apiVersion: 1});
+</script></body></html>
+"""
+
+
+def _declare_ring():
+    d = Path(tempfile.gettempdir()) / "political_mbti_ring"
+    d.mkdir(exist_ok=True)
+    f = d / "index.html"
+    if not f.exists() or f.read_text(encoding="utf-8") != RING_HTML:
+        f.write_text(RING_HTML, encoding="utf-8")
+    return components.declare_component("political_mbti_ring", path=str(d))
+
+
+_ring = _declare_ring()
+
+
+def ring_select(qid, left, right, labels, selected):
+    """丸5つを横一列で表示し、押された値(2..-2)を返す。未選択ならNone。"""
+    ss = st.session_state
+    return _ring(
+        left=left, right=right, labels=labels, selected=selected,
+        green=GREEN, purple=PURPLE, gray=GRAY,
+        key=f"ring_{ss.nonce}_{qid}", default=None,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -236,6 +333,7 @@ def init_state():
         ss.pos = 0
         ss.stage = "base"      # base / more / issues
         ss.seed = random.randrange(10**9)
+        ss.nonce = 0           # 質問が切り替わるたびに+1 (コンポーネントの値をリセット)
 
 
 def start_quiz(stage, ids):
@@ -253,6 +351,7 @@ def answer(qid, val):
     ss = st.session_state
     ss.answers[qid] = val
     ss.pos += 1
+    ss.nonce += 1
     if ss.pos >= len(ss.queue):
         ss.page = "result"
 
@@ -261,6 +360,7 @@ def go_back():
     ss = st.session_state
     if ss.pos > 0:
         ss.pos -= 1
+        ss.nonce += 1
 
 
 def show_result():
@@ -347,20 +447,24 @@ def render_quiz():
 """,
             unsafe_allow_html=True,
         )
-        options = AB_OPTIONS
+        options, ends = AB_OPTIONS, ("A", "B")
     else:
         st.markdown(f'<div class="q-text">{q["text"]}</div>', unsafe_allow_html=True)
-        options = AGREE_OPTIONS
+        options, ends = AGREE_OPTIONS, ("賛成", "反対")
 
-    for label, val in options:
-        st.button(
-            label, key=f'{q["id"]}_{val}', on_click=answer,
-            args=(q["id"], val), use_container_width=True,
-        )
+    picked = ring_select(
+        q["id"], ends[0], ends[1],
+        [label.split(" ", 1)[1] for label, _ in options],
+        ss.answers.get(q["id"]),
+    )
+    st.caption("丸をタップして回答します。")
     st.button(
         "わからない / 答えたくない", key=f'{q["id"]}_na', on_click=answer,
         args=(q["id"], None), use_container_width=True,
     )
+    if picked is not None:
+        answer(q["id"], picked)
+        st.rerun()
     if ss.pos > 0:
         st.button("← ひとつ前に戻る", key=f'{q["id"]}_back', on_click=go_back)
 
